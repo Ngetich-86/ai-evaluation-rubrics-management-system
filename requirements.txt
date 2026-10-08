@@ -1,0 +1,7 @@
+# Runtime dependencies. pyproject.toml is the source of truth; for development prefer:
+#   pip install -e ".[dev]"
+fastapi>=0.115,<1.0
+uvicorn>=0.30
+sqlalchemy>=2.0.30,<3.0
+pydantic>=2.7,<3.0
+pydantic-settings>=2.3,<3.0
