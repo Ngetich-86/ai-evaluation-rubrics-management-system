@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <title>AI Model Evaluation &amp; Rubric Management</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <div>
+          <h1>AI Model Evaluation &amp; Rubric Management</h1>
+          <p class="subtitle">
+            Create rubrics, evaluate model outputs, and compare human rater agreement.
+          </p>
+        </div>
+        <nav class="header-links" aria-label="API links">
+          <span id="api-health" class="health" role="status">Checking API…</span>
+          <a href="/docs">API docs (Swagger)</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="container">
+      <!-- 1. Rubrics ------------------------------------------------------------------ -->
+      <section class="card" aria-labelledby="rubrics-heading">
+        <h2 id="rubrics-heading"><span class="step">1</span> Rubrics</h2>
+        <div class="grid-2">
+          <form id="rubric-form">
+            <h3>Create rubric</h3>
+            <div class="field">
+              <label for="rubric-name">Name</label>
+              <input id="rubric-name" name="name" required maxlength="200" />
+            </div>
+            <div class="field">
+              <label for="rubric-description">Description <span class="optional">(optional)</span></label>
+              <textarea id="rubric-description" name="description" rows="2" maxlength="4000"></textarea>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="scale-min">Minimum score</label>
+                <input id="scale-min" type="number" step="1" value="1" required />
+              </div>
+              <div class="field">
+                <label for="scale-max">Maximum score</label>
+                <input id="scale-max" type="number" step="1" value="5" required />
+              </div>
+            </div>
+            <p class="hint">
+              All criteria share this scale. Each criterion needs a label for every score; anchor
+              rows follow the scale automatically.
+            </p>
+
+            <div id="criteria-list"></div>
+
+            <div class="actions">
+              <button type="button" id="add-criterion" class="secondary">Add criterion</button>
+              <button type="button" id="rubric-example" class="secondary">Fill example</button>
+              <button type="submit" class="primary">Create rubric</button>
+            </div>
+            <p id="rubric-status" class="status" role="status" aria-live="polite"></p>
+          </form>
+
+          <div>
+            <div class="list-header">
+              <h3>Existing rubrics</h3>
+              <button type="button" id="refresh-rubrics" class="secondary small">Refresh</button>
+            </div>
+            <p id="rubric-list-status" class="status" role="status" aria-live="polite"></p>
+            <div class="table-wrap">
+              <table class="data-table">
+                <caption class="visually-hidden">Rubrics</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Scale</th>
+                    <th scope="col">Criteria</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="rubric-rows"></tbody>
+              </table>
+            </div>
+            <div id="rubric-detail" class="detail" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Submissions -------------------------------------------------------------- -->
+      <section class="card" aria-labelledby="submissions-heading">
+        <h2 id="submissions-heading"><span class="step">2</span> Submissions</h2>
+        <div class="grid-2">
+          <form id="submission-form">
+            <h3>Submit a model output</h3>
+            <div class="field">
+              <label for="sub-prompt">Prompt</label>
+              <textarea id="sub-prompt" rows="3" required maxlength="100000"></textarea>
+            </div>
+            <div class="field">
+              <label for="sub-output">Model output</label>
+              <textarea id="sub-output" rows="5" required maxlength="100000"></textarea>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="sub-model">Model name</label>
+                <input id="sub-model" required maxlength="200" />
+              </div>
+              <div class="field">
+                <label for="sub-version">Model version <span class="optional">(optional)</span></label>
+                <input id="sub-version" maxlength="100" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="sub-reference">Reference answer <span class="optional">(optional)</span></label>
+              <textarea id="sub-reference" rows="2" maxlength="100000"></textarea>
+            </div>
+            <div class="field">
+              <label for="sub-metadata">Model metadata <span class="optional">(optional JSON object)</span></label>
+              <textarea id="sub-metadata" rows="2" class="mono" placeholder='{"temperature": 0.2}'></textarea>
+            </div>
+            <div class="actions">
+              <button type="button" id="submission-example" class="secondary">Fill example</button>
+              <button type="submit" class="primary">Create submission</button>
+            </div>
+            <p id="submission-status" class="status" role="status" aria-live="polite"></p>
+          </form>
+
+          <div>
+            <div class="list-header">
+              <h3>Recent submissions</h3>
+              <button type="button" id="refresh-submissions" class="secondary small">Refresh</button>
+            </div>
+            <p id="submission-list-status" class="status" role="status" aria-live="polite"></p>
+            <div class="table-wrap">
+              <table class="data-table">
+                <caption class="visually-hidden">Submissions</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Model</th>
+                    <th scope="col">Prompt</th>
+                    <th scope="col">Evals</th>
+                    <th scope="col">Created</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="submission-rows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Scoring ------------------------------------------------------------------ -->
+      <section class="card" aria-labelledby="score-heading">
+        <h2 id="score-heading"><span class="step">3</span> Score a submission</h2>
+        <p id="no-submission" class="hint">Select a submission in step 2 to score it.</p>
+        <div id="selected-submission" class="detail" hidden></div>
+
+        <form id="score-form" hidden>
+          <div class="row">
+            <div class="field">
+              <label for="score-rubric">Rubric</label>
+              <select id="score-rubric" required></select>
+            </div>
+            <div class="field">
+              <label for="rater-id">Rater ID</label>
+              <input
+                id="rater-id"
+                required
+                maxlength="100"
+                pattern="[A-Za-z0-9._:@\-]+"
+                value="rater-001"
+                aria-describedby="rater-id-hint"
+              />
+              <small id="rater-id-hint" class="hint">Stable ID: letters, digits, . _ : @ -</small>
+            </div>
+            <div class="field">
+              <label for="rater-name">Rater name</label>
+              <input id="rater-name" required maxlength="200" value="Evaluator One" />
+            </div>
+          </div>
+
+          <fieldset id="criterion-scores" class="score-fieldset">
+            <legend>Criterion scores</legend>
+            <p class="hint">Choose a rubric to see its criteria.</p>
+          </fieldset>
+
+          <div class="row">
+            <div class="field">
+              <label for="overall-score">Overall score <span class="optional">(your holistic judgement)</span></label>
+              <select id="overall-score" required></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="overall-comments">Comments <span class="optional">(optional)</span></label>
+            <textarea id="overall-comments" rows="2" maxlength="100000"></textarea>
+          </div>
+          <div class="actions">
+            <button type="submit" class="primary">Submit evaluation</button>
+          </div>
+          <p id="score-status" class="status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- 4. Results ------------------------------------------------------------------ -->
+      <section class="card" aria-labelledby="results-heading">
+        <h2 id="results-heading"><span class="step">4</span> Scores &amp; agreement</h2>
+        <p id="no-results" class="hint">Select a submission in step 2 to view its results.</p>
+        <div id="results-panel" hidden>
+          <div class="row align-end">
+            <div class="field">
+              <label for="results-rubric">Rubric</label>
+              <select id="results-rubric"></select>
+            </div>
+            <div class="actions">
+              <button type="button" id="load-scores" class="secondary">Load evaluations</button>
+              <button type="button" id="load-agreement" class="primary">Calculate agreement</button>
+            </div>
+          </div>
+          <p id="results-status" class="status" role="status" aria-live="polite"></p>
+          <div id="agreement-output"></div>
+          <div id="scores-output"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="container site-footer">
+      <p>
+        Served by the FastAPI backend. Interactive API reference:
+        <a href="/docs">/docs</a> · <a href="/health">/health</a>
+      </p>
+    </footer>
+  </body>
+</html>

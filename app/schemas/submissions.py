@@ -43,3 +43,21 @@ class SubmissionRead(ReadModel):
     reference_answer: str | None
     created_at: datetime
     evaluations: list[EvaluationRead]
+
+
+class SubmissionSummary(ReadModel):
+    """Compact submission listing entry; fetch the submission for full text and evaluations."""
+
+    id: int
+    model_name: str
+    model_version: str | None
+    prompt_preview: str = Field(description="First characters of the prompt.")
+    evaluation_count: int
+    created_at: datetime
+
+
+class SubmissionList(ReadModel):
+    items: list[SubmissionSummary]
+    total: int
+    limit: int
+    offset: int

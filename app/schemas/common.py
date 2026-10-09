@@ -8,6 +8,9 @@ MAX_LABEL_LENGTH = 100
 MAX_DESCRIPTION_LENGTH = 4_000
 MAX_LONG_TEXT_LENGTH = 100_000
 
+DEFAULT_PAGE_SIZE = 20
+MAX_PAGE_SIZE = 100
+
 Name = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_NAME_LENGTH)
 ]

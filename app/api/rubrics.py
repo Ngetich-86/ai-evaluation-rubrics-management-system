@@ -4,13 +4,11 @@ from fastapi import APIRouter, Query, status
 
 from app.api.errors import error_responses
 from app.db.session import DbSession
+from app.schemas.common import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.schemas.rubrics import RubricCreate, RubricList, RubricRead
 from app.services import rubric_service
 
 router = APIRouter(prefix="/rubrics", tags=["Rubrics"])
-
-DEFAULT_PAGE_SIZE = 20
-MAX_PAGE_SIZE = 100
 
 
 @router.post(

@@ -2,10 +2,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
 from app import __version__
-from app.api import analysis, health, rubrics, scores, submissions
+from app.api import analysis, frontend, health, rubrics, scores, submissions
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, log_requests
@@ -44,8 +45,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_error_handlers(app)
     app.middleware("http")(log_requests)
-    for module in (health, rubrics, submissions, scores, analysis):
+    for module in (health, rubrics, submissions, scores, analysis, frontend):
         app.include_router(module.router)
+    app.mount("/static", StaticFiles(directory=frontend.FRONTEND_DIR), name="static")
     return app
 
 
