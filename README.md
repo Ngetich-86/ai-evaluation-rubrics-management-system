@@ -131,6 +131,19 @@ is set; PostgreSQL works through the same setting.
 **From the command line:** with the server running, run `python scripts/demo_flow.py`. It goes
 through the same flow through the API and prints each response.
 
+## Test with VS Code REST Client
+
+[`api.http`](api.http) includes a complete demo dataset and can reproduce the same workflow shown
+in the frontend: rubric creation, model submission, two human evaluations, score retrieval,
+agreement analysis, and validation failures.
+
+1. Install the VS Code extension **REST Client** (`humao.rest-client`).
+2. Start the app: `uvicorn app.main:app --reload`.
+3. Open `api.http`.
+4. Click **Send Request** above each request, top to bottom.
+
+Later requests take their IDs from earlier responses, so nothing needs to be copied by hand.
+
 ## API examples
 
 Business-rule errors share one format:

@@ -1,0 +1,359 @@
+# AI Model Evaluation & Rubric Management API: REST Client request suite
+#
+# Usage (VS Code + "REST Client" extension, humao.rest-client):
+#   1. Start the app:  uvicorn app.main:app --reload
+#   2. Click "Send Request" above each request, top to bottom.
+#
+# The happy path mirrors the web UI: create a rubric, submit a model output, have two raters score
+# it, then view the scores and agreement. Later requests reuse IDs from earlier responses through
+# named requests ({{createRubric.response.body.$.id}}), so nothing needs to be copied by hand. Send
+# "Create rubric" and "Create submission" before the requests that depend on them.
+#
+# All people, models and runs below are fictional demo data.
+
+@baseUrl = http://127.0.0.1:8000
+
+
+### =========================================================
+### 1. Health
+### =========================================================
+
+### Health check
+# Confirms the API and its database connection are up.
+# Expected: 200 OK  {"status": "ok", "database": "ok"}
+GET {{baseUrl}}/health
+
+
+### =========================================================
+### 2. Rubrics
+### =========================================================
+
+### Create rubric
+# A 1-5 rubric with four weighted criteria. Every criterion has an anchor for every score.
+# Expected: 201 Created (response includes generated criterion IDs, used for scoring below)
+# @name createRubric
+POST {{baseUrl}}/rubrics
+Content-Type: application/json
+
+{
+  "name": "General LLM Response Quality",
+  "description": "Evaluates whether an AI-generated response is correct, relevant, clear, and complete.",
+  "scale_min": 1,
+  "scale_max": 5,
+  "criteria": [
+    {
+      "name": "Correctness",
+      "description": "Are the facts, reasoning and technical claims accurate?",
+      "weight": 2.0,
+      "anchors": [
+        { "score": 1, "label": "Poor", "description": "Contains major factual or logical errors that would mislead the reader." },
+        { "score": 2, "label": "Weak", "description": "Several inaccuracies or a significant misconception." },
+        { "score": 3, "label": "Adequate", "description": "Mostly accurate, with minor errors or imprecise claims." },
+        { "score": 4, "label": "Strong", "description": "Accurate, with at most a small imprecision." },
+        { "score": 5, "label": "Excellent", "description": "Fully accurate and technically sound throughout." }
+      ]
+    },
+    {
+      "name": "Relevance",
+      "description": "Does the response address the question that was actually asked?",
+      "weight": 1.0,
+      "anchors": [
+        { "score": 1, "label": "Poor", "description": "Largely off-topic or answers a different question." },
+        { "score": 2, "label": "Weak", "description": "Touches the topic but misses the main request." },
+        { "score": 3, "label": "Adequate", "description": "Addresses the question with noticeable digressions or gaps." },
+        { "score": 4, "label": "Strong", "description": "Addresses every part of the question with little padding." },
+        { "score": 5, "label": "Excellent", "description": "Precisely targeted at the question, with no irrelevant content." }
+      ]
+    },
+    {
+      "name": "Clarity",
+      "description": "Is the response well organised and easy to follow?",
+      "weight": 1.0,
+      "anchors": [
+        { "score": 1, "label": "Poor", "description": "Confusing or disorganised; hard to extract the main point." },
+        { "score": 2, "label": "Weak", "description": "Understandable with effort; structure or wording gets in the way." },
+        { "score": 3, "label": "Adequate", "description": "Generally clear, but some passages are vague or dense." },
+        { "score": 4, "label": "Strong", "description": "Clear and logically structured, with minor wording issues." },
+        { "score": 5, "label": "Excellent", "description": "Exceptionally clear, concise and well structured." }
+      ]
+    },
+    {
+      "name": "Completeness",
+      "description": "Does the response cover everything a strong answer needs?",
+      "weight": 1.0,
+      "anchors": [
+        { "score": 1, "label": "Poor", "description": "Omits most of what the question requires." },
+        { "score": 2, "label": "Weak", "description": "Covers only part of the question; key elements are missing." },
+        { "score": 3, "label": "Adequate", "description": "Covers the main points but leaves out important details." },
+        { "score": 4, "label": "Strong", "description": "Covers all key points; only secondary details are missing." },
+        { "score": 5, "label": "Excellent", "description": "Thorough; nothing important is missing." }
+      ]
+    }
+  ]
+}
+
+
+### List rubrics
+# The rubric list shown in the web UI.
+# Expected: 200 OK  {"items": [...], "total": n, "limit": 20, "offset": 0}
+GET {{baseUrl}}/rubrics?limit=20&offset=0
+
+
+### View the created rubric
+# Full rubric with criteria, weights and anchors.
+# Expected: 200 OK
+GET {{baseUrl}}/rubrics/{{createRubric.response.body.$.id}}
+
+
+### =========================================================
+### 3. Submissions
+### =========================================================
+
+### Create submission
+# A believable model answer with deliberate gaps (no mention of key expiry, of storing the key
+# atomically with the charge, or of a request reusing a key with a different payload), so raters
+# can reasonably disagree.
+# Expected: 201 Created
+# @name createSubmission
+POST {{baseUrl}}/submissions
+Content-Type: application/json
+
+{
+  "prompt": "Explain why idempotency is important in payment APIs and give one practical implementation example.",
+  "output": "Idempotency means that making the same request several times has the same effect as making it once. In payment APIs this matters because networks are unreliable: a client may time out and retry a charge that actually succeeded, or a user may double-click a Pay button. Without idempotency, each retry could create a new charge and the customer would be billed twice.\n\nA common implementation is an idempotency key. The client generates a unique key (for example a UUID) for each logical payment and sends it in a header such as Idempotency-Key. When the server receives a request, it checks whether it has already processed that key. If not, it processes the payment and stores the key together with the response. If the key has been seen before, the server skips processing and returns the stored response, so the client gets the same result and no second charge is made.\n\nFor example, POST /payments with Idempotency-Key: 9f1c2e7a-... and an amount of 50.00 returns 201 with payment_id pay_123. If the client retries with the same key, the server returns the same 201 response with pay_123 instead of charging again.",
+  "model_name": "demo-llm-1",
+  "model_version": "2026-09",
+  "model_metadata": {
+    "temperature": 0.2,
+    "provider": "demo-provider",
+    "request_id": "demo-run-001",
+    "max_tokens": 600
+  },
+  "reference_answer": "Idempotency guarantees that repeating a request does not repeat its side effects. Payment clients retry after timeouts and users double-submit, so without it a retry can charge a customer twice. A standard design: the client sends a unique Idempotency-Key per logical operation; the server atomically records the key with the request fingerprint and the result in the same transaction as the charge; repeated requests with the same key return the stored response; a reused key with a different payload is rejected (e.g. 409/422); and keys expire after a retention window (for example 24 hours)."
+}
+
+
+### List submissions
+# The "Recent submissions" list in the web UI (newest first, with evaluation counts).
+# Expected: 200 OK
+GET {{baseUrl}}/submissions?limit=20&offset=0
+
+
+### View the selected submission
+# Prompt, output, metadata, reference answer and any evaluations so far (none yet).
+# Expected: 200 OK
+GET {{baseUrl}}/submissions/{{createSubmission.response.body.$.id}}
+
+
+### =========================================================
+### 4. Scoring
+### =========================================================
+
+### Rater 1 evaluates the response
+# Scores the output against all four rubric criteria; criterion IDs come from the rubric response.
+# Expected: 201 Created (response includes derived mean and weighted mean scores)
+# @name scoreRater1
+POST {{baseUrl}}/submissions/{{createSubmission.response.body.$.id}}/scores
+Content-Type: application/json
+
+{
+  "rubric_id": {{createRubric.response.body.$.id}},
+  "rater": { "external_id": "rater-001", "name": "Amina Hassan" },
+  "criterion_scores": [
+    { "criterion_id": {{createRubric.response.body.$.criteria[0].id}}, "score": 5, "comment": "Accurate explanation of retries and duplicate charges." },
+    { "criterion_id": {{createRubric.response.body.$.criteria[1].id}}, "score": 5, "comment": "Answers both parts of the prompt directly." },
+    { "criterion_id": {{createRubric.response.body.$.criteria[2].id}}, "score": 4, "comment": "Well structured; the worked example could be formatted more clearly." },
+    { "criterion_id": {{createRubric.response.body.$.criteria[3].id}}, "score": 4, "comment": "Does not mention key expiry or where keys are persisted." }
+  ],
+  "overall_score": 4,
+  "comments": "The response correctly explains duplicate-request protection and gives a practical idempotency-key example. It could be slightly more explicit about persistence and expiry policies."
+}
+
+
+### View scores after the first evaluation
+# Expected: 200 OK (one evaluation)
+GET {{baseUrl}}/submissions/{{createSubmission.response.body.$.id}}/scores?rubric_id={{createRubric.response.body.$.id}}
+
+
+### Rater 2 evaluates the same response
+# A second, independent evaluation with slightly different scores, so agreement is meaningful.
+# Expected: 201 Created
+POST {{baseUrl}}/submissions/{{createSubmission.response.body.$.id}}/scores
+Content-Type: application/json
+
+{
+  "rubric_id": {{createRubric.response.body.$.id}},
+  "rater": { "external_id": "rater-002", "name": "Daniel Kimani" },
+  "criterion_scores": [
+    { "criterion_id": {{createRubric.response.body.$.criteria[0].id}}, "score": 5, "comment": "No technical errors." },
+    { "criterion_id": {{createRubric.response.body.$.criteria[1].id}}, "score": 4, "comment": "On topic, though the opening definition is longer than needed." },
+    { "criterion_id": {{createRubric.response.body.$.criteria[2].id}}, "score": 4, "comment": "Easy to follow." },
+    { "criterion_id": {{createRubric.response.body.$.criteria[3].id}}, "score": 3, "comment": "Missing key retention, atomic storage and handling of a reused key with a different payload." }
+  ],
+  "overall_score": 4,
+  "comments": "The answer is technically sound and directly addresses duplicate payment requests, but it leaves out some implementation details such as key retention and conflict handling."
+}
+
+
+### View scores after both evaluations
+# Both evaluations with rater metadata, criterion scores and derived statistics.
+# Expected: 200 OK (two evaluations)
+GET {{baseUrl}}/submissions/{{createSubmission.response.body.$.id}}/scores?rubric_id={{createRubric.response.body.$.id}}
+
+
+### =========================================================
+### 5. Agreement
+### =========================================================
+
+### Inter-rater agreement (Cohen's kappa)
+# Criteria are the rated units. Rater 1 = [5, 5, 4, 4], rater 2 = [5, 4, 4, 3]:
+#   Po = 2/4 = 0.5, Pe = 6/16 = 0.375, kappa = (0.5 - 0.375) / (1 - 0.375) = 0.2
+# Expected: 200 OK  (pairwise kappa 0.2, with observed/expected agreement and a caution note)
+GET {{baseUrl}}/submissions/{{createSubmission.response.body.$.id}}/agreement?rubric_id={{createRubric.response.body.$.id}}
+
+
+### =========================================================
+### 6. A second submission
+### =========================================================
+
+### Create a second submission for evaluation
+# A different task, ready to be scored with the same rubric.
+# Expected: 201 Created
+# @name createSecondSubmission
+POST {{baseUrl}}/submissions
+Content-Type: application/json
+
+{
+  "prompt": "Compare optimistic and pessimistic concurrency control and explain when each is appropriate.",
+  "output": "Pessimistic concurrency control assumes conflicts are likely, so it locks data before using it (for example SELECT ... FOR UPDATE). Other transactions must wait until the lock is released. This guarantees consistency but reduces throughput and can cause deadlocks.\n\nOptimistic concurrency control assumes conflicts are rare. Transactions read data without locking, and on write they check that nothing changed in the meantime, usually with a version number or timestamp column (UPDATE ... WHERE id = ? AND version = ?). If the check fails, the transaction is retried or the user is asked to resolve the conflict.\n\nUse pessimistic locking when contention is high or a conflict is expensive to redo, such as decrementing limited inventory during a flash sale. Use optimistic locking when conflicts are rare and reads dominate, such as editing user profiles or most web forms.",
+  "model_name": "demo-llm-1",
+  "model_version": "2026-09",
+  "model_metadata": {
+    "temperature": 0.3,
+    "provider": "demo-provider",
+    "request_id": "demo-run-002"
+  },
+  "reference_answer": "Pessimistic control acquires locks before reading or writing, preventing conflicts at the cost of blocking, lower concurrency and deadlock risk; suited to high contention or costly conflicts. Optimistic control proceeds without locks and validates at commit (version/timestamp checks), retrying on conflict; suited to low contention and read-heavy workloads. A strong answer mentions the trade-off between blocking and retries, and gives a concrete example of each."
+}
+
+
+### View the second submission
+# Expected: 200 OK (no evaluations yet)
+GET {{baseUrl}}/submissions/{{createSecondSubmission.response.body.$.id}}
+
+
+### =========================================================
+### 7. Error / validation cases
+### =========================================================
+# Run these after the happy path above. Each one should be rejected and must not change any data.
+
+### Duplicate evaluation
+# Reuses rater-001 for the same submission + rubric. The original evaluation is never overwritten.
+# Expected: 409 Conflict  (code DUPLICATE_EVALUATION)
+POST {{baseUrl}}/submissions/{{createSubmission.response.body.$.id}}/scores
+Content-Type: application/json
+
+{
+  "rubric_id": {{createRubric.response.body.$.id}},
+  "rater": { "external_id": "rater-001", "name": "Amina Hassan" },
+  "criterion_scores": [
+    { "criterion_id": {{createRubric.response.body.$.criteria[0].id}}, "score": 3 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[1].id}}, "score": 3 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[2].id}}, "score": 3 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[3].id}}, "score": 3 }
+  ],
+  "overall_score": 3,
+  "comments": "Attempted re-score; should be rejected."
+}
+
+
+### Out-of-range criterion score
+# Score 6 on a 1-5 rubric.
+# Expected: 422 Unprocessable Entity  (code INVALID_CRITERION_SCORE, field criterion_scores[2].score)
+POST {{baseUrl}}/submissions/{{createSecondSubmission.response.body.$.id}}/scores
+Content-Type: application/json
+
+{
+  "rubric_id": {{createRubric.response.body.$.id}},
+  "rater": { "external_id": "rater-003", "name": "Grace Otieno" },
+  "criterion_scores": [
+    { "criterion_id": {{createRubric.response.body.$.criteria[0].id}}, "score": 4 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[1].id}}, "score": 5 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[2].id}}, "score": 6 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[3].id}}, "score": 4 }
+  ],
+  "overall_score": 4
+}
+
+
+### Missing criterion score
+# Omits Completeness; every rubric criterion must be scored.
+# Expected: 422 Unprocessable Entity  (code MISSING_CRITERION_SCORES)
+POST {{baseUrl}}/submissions/{{createSecondSubmission.response.body.$.id}}/scores
+Content-Type: application/json
+
+{
+  "rubric_id": {{createRubric.response.body.$.id}},
+  "rater": { "external_id": "rater-003", "name": "Grace Otieno" },
+  "criterion_scores": [
+    { "criterion_id": {{createRubric.response.body.$.criteria[0].id}}, "score": 4 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[1].id}}, "score": 5 },
+    { "criterion_id": {{createRubric.response.body.$.criteria[2].id}}, "score": 4 }
+  ],
+  "overall_score": 4
+}
+
+
+### Unknown rubric in an evaluation
+# Expected: 404 Not Found  (code RUBRIC_NOT_FOUND, field rubric_id)
+POST {{baseUrl}}/submissions/{{createSecondSubmission.response.body.$.id}}/scores
+Content-Type: application/json
+
+{
+  "rubric_id": 999999,
+  "rater": { "external_id": "rater-003", "name": "Grace Otieno" },
+  "criterion_scores": [
+    { "criterion_id": {{createRubric.response.body.$.criteria[0].id}}, "score": 4 }
+  ],
+  "overall_score": 4
+}
+
+
+### Unknown rubric
+# Expected: 404 Not Found  (code RUBRIC_NOT_FOUND)
+GET {{baseUrl}}/rubrics/999999
+
+
+### Unknown submission
+# Expected: 404 Not Found  (code SUBMISSION_NOT_FOUND)
+GET {{baseUrl}}/submissions/999999
+
+
+### Agreement with fewer than two evaluations
+# The second submission has not been scored, so agreement is refused rather than reported as 0.
+# Expected: 409 Conflict  (code INSUFFICIENT_EVALUATIONS)
+GET {{baseUrl}}/submissions/{{createSecondSubmission.response.body.$.id}}/agreement
+
+
+### Invalid rubric: missing anchor
+# Score 3 has no anchor; every score on the scale needs one.
+# Expected: 422 Unprocessable Entity
+POST {{baseUrl}}/rubrics
+Content-Type: application/json
+
+{
+  "name": "Incomplete Rubric",
+  "scale_min": 1,
+  "scale_max": 5,
+  "criteria": [
+    {
+      "name": "Helpfulness",
+      "anchors": [
+        { "score": 1, "label": "Poor" },
+        { "score": 2, "label": "Weak" },
+        { "score": 4, "label": "Strong" },
+        { "score": 5, "label": "Excellent" }
+      ]
+    }
+  ]
+}

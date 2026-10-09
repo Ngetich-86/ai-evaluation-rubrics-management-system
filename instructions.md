@@ -145,6 +145,17 @@ The script runs the same flow through the API and prints each response. It needs
 `pip install -e ".[dev]"` installs. To target another server, pass its address:
 `python scripts/demo_flow.py http://127.0.0.1:9000`.
 
+### Optional API testing from VS Code
+
+`api.http` is a ready-made request suite for the VS Code **REST Client** extension
+(`humao.rest-client`). It covers the full workflow with realistic demo data, a two-rater agreement
+check, and common validation errors (409, 422, 404).
+
+1. Install the extension and start the server (`uvicorn app.main:app --reload`).
+2. Open `api.http` and click **Send Request** above each request, from top to bottom.
+
+IDs from earlier responses are reused automatically, and each request notes its expected status.
+
 ## PostgreSQL
 
 SQLite is all you need for evaluation. To use PostgreSQL instead:
@@ -182,6 +193,7 @@ frontend/         web interface: index.html, styles.css, app.js (no build step)
 tests/            pytest suite
 scripts/          demo_flow.py: end-to-end demo against a running server
 docs/             screenshot used in the README
+api.http          REST Client request suite (VS Code)
 README.md         overview, API reference, agreement metric, design decisions
 instructions.md   this guide
 ```
