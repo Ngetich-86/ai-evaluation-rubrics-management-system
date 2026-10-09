@@ -15,6 +15,12 @@ When two or more raters have scored a submission with the same rubric, the API r
 **inter-rater agreement** as pairwise Cohen's kappa. The result includes the observed and expected
 agreement behind each kappa, not just the final number.
 
+The project has three parts: a REST API, a small web interface written in plain HTML, CSS and
+JavaScript, and interactive Swagger documentation. FastAPI serves all three from one process, so
+a reviewer can run the whole workflow in a browser without Node.js or a second server.
+
+![Scores and agreement view of the web interface](docs/frontend.png)
+
 ## Features
 
 - Rubric creation with a common integer scale, weighted criteria and complete score anchors
@@ -25,13 +31,16 @@ agreement behind each kappa, not just the final number.
 - Atomic scoring: an evaluation and all its criterion scores are committed together or not at all
 - Derived statistics (mean and weighted mean criterion score) kept separate from the human score
 - Pairwise Cohen's kappa agreement analysis with explicit handling of undefined cases
+- Web interface at `/`: plain HTML, CSS and JavaScript with no build step, served by FastAPI
 - OpenAPI / Swagger documentation, a `/health` check and structured JSON request logs
+- Automated tests (pytest) and a CI workflow that runs lint, format and test checks
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    Client --> API["FastAPI routers (app/api)"]
+    Browser["Web UI (frontend/)"] --> API["FastAPI routers (app/api)"]
+    Client["API clients / Swagger"] --> API
     API --> Services["Service layer (app/services)<br/>business rules, transactions, kappa"]
     Services --> ORM["SQLAlchemy 2.x models (app/db)"]
     ORM --> DB[("SQLite (default) / PostgreSQL")]
@@ -46,6 +55,7 @@ app/
   db/              SQLAlchemy models, UTC datetime type, engine and session dependency
   core/            settings, error types and handler, JSON request logging
 tests/             pytest suite; every test uses its own temporary SQLite database
+frontend/          index.html, styles.css, app.js: the web interface (served at / and /static)
 scripts/           demo_flow.py: runs the full workflow against a live server
 ```
 
@@ -88,7 +98,8 @@ SQLite and `JSONB` on PostgreSQL.
 
 ## Running locally
 
-Requires Python 3.12+.
+See [instructions.md](instructions.md) for complete setup instructions, including Windows,
+PostgreSQL and troubleshooting. Quick start (Python 3.12+):
 
 ```bash
 python -m venv .venv
@@ -97,29 +108,28 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
-Then open the interactive docs at <http://127.0.0.1:8000/docs>.
+| URL | What |
+| --- | --- |
+| <http://127.0.0.1:8000/> | Web interface |
+| <http://127.0.0.1:8000/docs> | Swagger / OpenAPI documentation |
+| <http://127.0.0.1:8000/health> | Health check |
 
-The schema is created on startup. By default the data goes to `./eval.db` (SQLite). To use a
-different database, set `DATABASE_URL` in the environment or in a `.env` file (see `.env.example`).
+The schema is created on startup. Data is stored in `./eval.db` (SQLite) unless `DATABASE_URL`
+is set; PostgreSQL works through the same setting.
 
-```bash
-pip install -e ".[postgres]"
-export DATABASE_URL="postgresql+psycopg://eval_user:change-me@localhost:5432/eval"
-uvicorn app.main:app
-```
+### Demo workflow
 
-`uvicorn main:app` also works; the root `main.py` re-exports the application.
+**In the browser:** open `/` and work through the four numbered sections. Each form has a
+**Fill example** button:
 
-### Demo in one command
+1. Create a rubric.
+2. Create a submission.
+3. Score the submission as one rater, then as a second rater. The rater ID advances
+   automatically.
+4. Load the evaluations and calculate agreement.
 
-With the server running:
-
-```bash
-python scripts/demo_flow.py
-```
-
-The script creates a three-criterion 1–5 rubric and a submission, has two raters score the
-submission differently, then prints the scores and the agreement result.
+**From the command line:** with the server running, run `python scripts/demo_flow.py`. It goes
+through the same flow through the API and prints each response.
 
 ## API examples
 
@@ -197,6 +207,18 @@ curl -X POST http://127.0.0.1:8000/submissions -H "Content-Type: application/jso
   "reference_answer": "A strong answer discusses duplicate requests, retries and idempotency keys."
 }'
 ```
+
+### `GET /submissions`
+
+```bash
+curl "http://127.0.0.1:8000/submissions?limit=20&offset=0"
+# {"items": [{"id": 1, "model_name": "example-model", "model_version": "v1",
+#             "prompt_preview": "Explain why idempotency…", "evaluation_count": 2, "created_at": "…"}],
+#  "total": 1, "limit": 20, "offset": 0}
+```
+
+Newest first. Each entry is a compact summary; fetch a submission by ID for its full text and
+scores.
 
 ### `GET /submissions/{id}`
 
@@ -301,6 +323,8 @@ the same results on every run. The suite covers:
   duplicate caught by the database constraint
 - the kappa function against known examples, including a degenerate case
 - the agreement endpoint with one, two and three raters, and with several rubrics
+- the submissions list, and that the web interface and static files are served without shadowing
+  the API or `/docs`
 
 Lint and format checks:
 
@@ -379,6 +403,10 @@ future improvements below).
 - **Schema creation on startup** instead of Alembic, to keep the assessment easy to run.
 - **Privacy-aware logging:** request logs record only the method, route template, status code and
   duration. Prompts, outputs, reference answers and comments are never logged.
+- **Same-origin web interface:** FastAPI serves the UI, so no CORS configuration is needed and none
+  is enabled. The UI renders all API data with `textContent` and DOM nodes, never `innerHTML`, so
+  prompts and model outputs that contain HTML stay plain text. A Content-Security-Policy restricts
+  the page to same-origin scripts.
 - **Bounded input:** text fields, the size of `model_metadata`, the number of criteria and the
   number of scale points all have limits. Unknown request fields are rejected.
 
@@ -394,4 +422,6 @@ None of the following is implemented. Each is a realistic next step:
 - Dataset-level agreement: per-criterion kappa across many submissions, weighted (quadratic) kappa
   for ordinal scales, and Fleiss' kappa or Krippendorff's alpha for many raters with missing data
 - Alembic migrations for production schema changes
-- A frontend for rubric authoring and scoring
+- Rubric editing and archiving. The API supports creation only, so the UI does too.
+- Browser end-to-end tests in CI. The UI is currently verified manually, plus pytest checks that it
+  is served.
