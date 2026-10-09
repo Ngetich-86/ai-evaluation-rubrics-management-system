@@ -13,7 +13,20 @@ def _enable_sqlite_foreign_keys(dbapi_connection: Any, _connection_record: Any) 
     cursor.close()
 
 
+def normalize_database_url(database_url: str) -> str:
+    """Use the psycopg 3 driver for bare PostgreSQL URLs.
+
+    Hosting providers such as Render supply `postgresql://` (or legacy `postgres://`) URLs, which
+    SQLAlchemy would otherwise map to the psycopg2 driver. URLs naming a driver are left unchanged.
+    """
+    for prefix in ("postgres://", "postgresql://"):
+        if database_url.startswith(prefix):
+            return "postgresql+psycopg://" + database_url.removeprefix(prefix)
+    return database_url
+
+
 def create_db_engine(database_url: str, *, echo: bool = False) -> Engine:
+    database_url = normalize_database_url(database_url)
     connect_args: dict[str, Any] = {}
     if database_url.startswith("sqlite"):
         # FastAPI runs sync endpoints in a thread pool.
