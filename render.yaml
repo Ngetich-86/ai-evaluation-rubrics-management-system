@@ -1,0 +1,30 @@
+# Render Blueprint for the hosted demo. Free resources only: one Python web service (which also
+# serves the web UI) and one free PostgreSQL database. No credentials are stored here; Render
+# injects DATABASE_URL from the database at deploy time.
+services:
+  - type: web
+    name: ai-evaluation-rubrics
+    runtime: python
+    plan: free
+    region: frankfurt
+    repo: https://github.com/Ngetich-86/ai-evaluation-rubrics-management-system
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: pip install ".[postgres]"
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.13"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-evaluation-rubrics-db
+          property: connectionString
+
+databases:
+  - name: ai-evaluation-rubrics-db
+    plan: free
+    region: frankfurt
+    databaseName: eval
+    user: eval
+    ipAllowList: [] # reachable only from Render services in the same region
