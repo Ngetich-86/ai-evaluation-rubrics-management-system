@@ -12,6 +12,8 @@
 # All people, models and runs below are fictional demo data.
 
 @baseUrl = http://127.0.0.1:8000
+# Hosted demo: https://ai-evaluation-rubrics.onrender.com
+# To target it, set baseUrl above to that address. The free instance may take about a minute to wake.
 
 
 ### =========================================================

@@ -4,6 +4,17 @@ This guide takes you from a fresh clone to a running application, with the test 
 The project is a FastAPI backend that also serves a plain HTML/CSS/JavaScript web interface. No
 Node.js or separate frontend server is needed.
 
+## Hosted Demo
+
+A live instance is available without installing anything:
+
+- Web interface: <https://ai-evaluation-rubrics.onrender.com/>
+- API documentation: <https://ai-evaluation-rubrics.onrender.com/docs>
+
+It runs on Render's free tier, so the first request after a period of inactivity can take around
+a minute while the service wakes up. Everything below still applies for running the project
+locally.
+
 ## Requirements
 
 - **Python 3.12 or newer** (`python3 --version`)

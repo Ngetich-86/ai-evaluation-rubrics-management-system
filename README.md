@@ -21,6 +21,15 @@ a reviewer can run the whole workflow in a browser without Node.js or a second s
 
 ![Scores and agreement view of the web interface](docs/frontend.png)
 
+## Live Demo
+
+- Web interface: <https://ai-evaluation-rubrics.onrender.com/>
+- API documentation (Swagger): <https://ai-evaluation-rubrics.onrender.com/docs>
+- Health check: <https://ai-evaluation-rubrics.onrender.com/health>
+
+> The demo runs on Render's free tier and may take around a minute to wake after a period of
+> inactivity. Data is stored in a free Render PostgreSQL database.
+
 ## Features
 
 - Rubric creation with a common integer scale, weighted criteria and complete score anchors
